@@ -1,13 +1,13 @@
 # jewel-2.4.0-2D
 A plugin for use with jewel-2.4.0 that enables the use of any (2+1)D medium profile.
 
-
+## Installing and Running
 There are two simple ways to install this plugin
-    (1) Modify an existing JEWEL installation
-    (2) Clone this full repository
+1. Modify an existing JEWEL installation
+2. Clone this full repository
 
-METHOD (1) - Modify an existing JEWEL installation
----------------------------------------------------
+### METHOD (1) - Modify an existing JEWEL installation
+
 The most intuitive way to include this plugin is to start with a working installation of
 jewel-2.4.0.  Then make the following modifications:
 (1.1)- Download the file medium-2D.f from this repository and copy it to your jewel-2.4.0
