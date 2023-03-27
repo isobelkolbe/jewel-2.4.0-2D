@@ -9,7 +9,7 @@ The plugin
 
 If you use this code, please cite as follows:
 1. For the standard `jewel-2.4.0-vac` and `jewel-2.4.0-simple` code, as per the JEWEL licence (and `README-jewel` here), cite the manual for the code, Eur.Phys.J. C74 (2014) no.2, 2762 [arXiv:1311.0048] and JHEP 1303 (2013) 080 [arXiv:1212.1599], and optionally EPJC C60 (2009) 617 [arXiv:0804.3568] for the physics.
-2. For the `jewel-2.4.0-2D` plugin, 
+2. For the `jewel-2.4.0-2D` plugin, [arxXiv:2303.14166]
 3. If you use the MUSIC profiles that are here, the inSpire handle is Schenke:2020mbo.
 
 ## Installation
