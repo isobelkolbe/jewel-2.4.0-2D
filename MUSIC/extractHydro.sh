@@ -4,6 +4,10 @@
 # This script will use a slightly modified version of Chun Shen's `hydro_analysis`
 # script to extract temperature and velocity profiles for use with jewel-2.4.0-2D.
 
+# This script needs pandas
+# Sometimes the MUSIC directories are structured differently.  If the extractor cannot
+# find the data file, try uncommenting line 33.
+
 # Location of the hydro analysis code that will do the extraction
 musicRepoDirectory=$PWD/../hydro_analysis
 
@@ -26,7 +30,7 @@ do
         rm -- *~(evolution_all_xyeta.dat|NcollList*) 
         mkdir results
         mv NcollList* NcollList.dat
-        mv evolution_all_xyeta.dat results/
+        # mv evolution_all_xyeta.dat results/   #If the extractor cannot find the datafile, try uncommenting this line.
 
         # Extract the temperature and velocity profiles
         cp $musicRepoDirectory/parameters.dat .
