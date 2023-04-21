@@ -59,34 +59,19 @@ H ,xedges, yedges= np.histogram2d(
 
 #--------------------------------------------------
 
-
-
 # Output histogram data and integrate Ncoll
-outputFile= open("NCollHistogram.dat","w")
+with open("NCollHistogram.dat","w") as outputFile:
 
-outputFile.write("Collision system: " + str(nuclA1) + " X " + str(nuclA2) + "\n")
-outputFile.write("Sigma_NN used: " + str(sigmaNN) +  "fm^2\n")
-# outputFile.write("TAB normalization constant: " + str(normC) + "\n")
-outputFile.write("----------------------------------- \n")
-outputFile.write("xmid \t ymid \t Ncoll \n")
+    outputFile.write("Collision system: " + str(nuclA1) + " X " + str(nuclA2) + "\n")
+    outputFile.write("Sigma_NN used: " + str(sigmaNN) +  "fm^2\n")
+    # outputFile.write("TAB normalization constant: " + str(normC) + "\n")
+    outputFile.write("----------------------------------- \n")
+    outputFile.write("xmid \t ymid \t Ncoll \n")
 
-testInt=0
-for i in range((len(xedges)-1)):
-    xval=abs(xedges[i+1]-xedges[i])/2+xedges[i]
-    for j in range((len(yedges)-1)):
-        yval=abs(yedges[j+1]-yedges[j])/2+yedges[j]
-        
-        # outputFile.write("{:8.3f}".format(xval))
-        # outputFile.write("{:8.3f}".format(yval))
-        # outputFile.write("{:8.3f}".format(H[i,j]))
-        # outputFile.write("{:8.3f}".format(H[i,j]/sigmaNN))
-        # outputFile.write("\n")
-        # testInt=testInt+normC*H[i,j]/sigmaNN*abs(xedges[i+1]-xedges[i])*abs(yedges[j+1]-yedges[j])
-        
-        outputFile.write(f"{xval:<10.3f}{yval:<10.3f}{H[i,j]:<10.3f}")
-
-outputFile.close()
-
-# normC=AB/TABint
-# print("Normalization constant: ", normC)
-# print("integrated TAB: ", testInt, ".  Compare with A1 * A2: ",AB)
+    testInt=0
+    for i in range((len(xedges)-1)):
+        xval=abs(xedges[i+1]-xedges[i])/2+xedges[i]
+        for j in range((len(yedges)-1)):
+            yval=abs(yedges[j+1]-yedges[j])/2+yedges[j]
+            
+            outputFile.write(f'{xval:<10.3f}{yval:<10.3f}{H[i,j]:<10.3f}')

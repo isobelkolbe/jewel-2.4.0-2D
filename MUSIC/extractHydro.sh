@@ -5,7 +5,7 @@
 # script to extract temperature and velocity profiles for use with jewel-2.4.0-2D.
 
 # Location of the hydro analysis code that will do the extraction
-musicRepoDirectory=$PWD/hydro_analysis
+musicRepoDirectory=$PWD/../hydro_analysis
 
 
 setopt extended_glob 
@@ -21,11 +21,12 @@ do
     dataFile=$dir/evolution_all_xyeta.dat
     if test -f "$dataFile"; then
         cd $dir 
-        echo "In " $PWD
+        echo "In " $PWD 
         # Clean the directory
-        mkdir results
         rm -- *~(evolution_all_xyeta.dat|NcollList*) 
-        mv NcollList_* NcollList.dat
+        mkdir results
+        mv NcollList* NcollList.dat
+        mv evolution_all_xyeta.dat results/
 
         # Extract the temperature and velocity profiles
         cp $musicRepoDirectory/parameters.dat .
