@@ -17,6 +17,13 @@ Along with an additional bash script that I have written (`extractHydro.sh`), yo
 1. I have commented out lines in the `main.cpp` file that output data that is not needed by medium-2D.
 2. I have edited `FluidcellStatistic.cpp` (and associated `FluidcellStatistic.h`), specifically by adding the function `outputTandUasTauvsXvsY`, modelled on the function `outputTempasTauvsX`, so that it now it outputs the temperature and velocity profiles in precisely the way read in by medium-2D.
 
+As such, in order to run it, run the following commands
+```
+cd hydro_analysis
+./compile.sh
+./hydro_analysis.e
+```
+
 Suppose you have downloaded, from the Google Drive link above, a bunch of the runs in one of the `HYDRO_RESULTS` directories so that you have a directory that contains several folders that look like `hydro_results_##`. 
 In order to extract the relevant information from these MUSIC profiles, simply copy `extractHydro.sh` into the parent directory that contains all they `hydro_results_##` folders, change the variable `musicRepoDirectory` in `extractHydro.sh` to point to the location of the `hydro_analysis` directory, and then run `extractHydro.sh`.
 
