@@ -1,6 +1,4 @@
-
-
-
+c--   Modules to replace common blocks
 
 C--   medium parameters
       module MEDPARAM
@@ -37,7 +35,7 @@ C--   velocity grids (ux and uy)
       implicit none
        double precision, allocatable :: Uxs(:,:,:), Uys(:,:,:),taus2(:)
      $     ,xs2(:),ys2(:)
-      double precision uxmax, uymax
+      double precision umax,unorm
       integer ntauvals2,nxvals2,nyvals2,tauAllStat2,xAllStat2,yAllStat2
      $     ,uxsAllStat,uysAllStat
       save
@@ -152,7 +150,7 @@ C--   default settings
       BMIN=0.d0
       BMAX=4.93d0
       NF=3
-      A=208    
+      A=208   
       N0=0.17d0
       D=0.54d0
       SIGMANN=6.76
@@ -261,8 +259,7 @@ c--   and the geometric cross section using a model
       
       
       
-C--   Read in hydro profiles:  
-C----------------------------    
+C--   Read in hydro profiles:      
       write(*,*)'The hydro profiles I will read are in ',hydrodir
 
 C--   read in temperature profile
@@ -295,8 +292,7 @@ C--   read in fluid rapidity profile
 
 
 c -------------------------------------------------------------
-c   MEDNEXTEVT function 
-c   chooses impact parameter and centrality
+c   MEDNEXTEVT function - chooses impact parameter and centrality
 c -------------------------------------------------------------
       SUBROUTINE MEDNEXTEVT
       use MEDPARAM
@@ -327,7 +323,7 @@ c--      No ncoll information, use model
          centr = r;
          
       else
-c--      Ncoll data available, so use bmin, bmax, centrmin and centremax
+c--    Ncoll data available, so use bmin, bmax, centrmin and centremax
          centr=(pyr(0)*(centrmax-centrmin)+centrmin)/100.  
          breal=(pyr(0)*(bmax-bmin)+bmin)         
       endif
@@ -344,8 +340,7 @@ c--      Ncoll data available, so use bmin, bmax, centrmin and centremax
       end
 
 c -------------------------------------------------------------
-c   PICKVTX function.  
-c   Choose vertex for initial hard scattering
+c   PICKVTXNcoll function.  Choose vertex for initial hard scattering
 c -------------------------------------------------------------
 
       SUBROUTINE PICKVTX(X,Y)
@@ -390,10 +385,6 @@ c--	   Remember that readncoll stores the midpoint of the histo edges
       endif
       END
 
-c -------------------------------------------------------------
-c   SETB function.  
-c   Sets the impact parameter
-c -------------------------------------------------------------
       SUBROUTINE SETB(BVAL)
       use MEDPARAM
       IMPLICIT NONE
@@ -402,10 +393,8 @@ c -------------------------------------------------------------
       BREAL=BVAL
       END
 
-c -------------------------------------------------------------
-c   GETSCATTERER function.  
-c   Compute properties of the scattering center
-c -------------------------------------------------------------
+
+
       SUBROUTINE GETSCATTERER(X,Y,Z,T,TYPE,PX,PY,PZ,E,MS)
       use MEDPARAM
       use MEDPARAMINT
@@ -504,9 +493,7 @@ C--   longitudinal boost
       py=pyb
       END
 
-c -------------------------------------------------------------
-c   AVSCATCEN function.  
-c -------------------------------------------------------------
+
       SUBROUTINE AVSCATCEN(X,Y,Z,T,PX,PY,PZ,E,m)
       use boostmed
       use rapmax2
@@ -536,22 +523,19 @@ c--   function calls
       pz = m*sinh(yst)
       end
 
-c -------------------------------------------------------------
-c   maxscatcen function.  
-c -------------------------------------------------------------
+
       SUBROUTINE maxscatcen(PX,PY,PZ,E,m)
       use boostmed
+      use rapmax
       use rapmax2
       use velgrid
       IMPLICIT NONE
 C--   local variables
       double precision px,py,pz,e,getmsmax,m,yst,frap
 
-C--   function calls
-      double precision getfrap
       if (boost) then
          yst = etamax2
-         frap = getfrap(uxmax,uymax)
+         frap=atanh(umax)
       else
          yst = 0.d0
          frap = 0.d0
@@ -564,10 +548,7 @@ C--   function calls
       end
       
 
-c -------------------------------------------------------------
-c   GETMD function.  
-c   Compute Debye mass
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION GETMD(X1,Y1,Z1,T1)
       use MDFAC
       IMPLICIT NONE
@@ -578,9 +559,7 @@ c -------------------------------------------------------------
       END
 
 
-c -------------------------------------------------------------
-c   GETMS function.  
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION GETMS(X2,Y2,Z2,T2)
       IMPLICIT NONE
       DOUBLE PRECISION X2,Y2,Z2,T2,GETMD
@@ -588,72 +567,55 @@ c -------------------------------------------------------------
       END
 
 
-c -------------------------------------------------------------
-c   GETNEFF function.  
-c   Compute the effective density given the local fluid velocity
-c -------------------------------------------------------------
-      DOUBLE PRECISION FUNCTION GETNEFF(X3,Y3,Z3,T3)
+
+      DOUBLE PRECISION FUNCTION GETNEFF(X3,Y3,Z3,T3,PX,PY)
       use MEDPARAM
       use MEDPARAMINT
       use rapmax2
       IMPLICIT NONE
 
 C--   local variables
-      DOUBLE PRECISION X3,Y3,Z3,T3,PI,frap,tau,cosheta,ux,uy,eta
+      DOUBLE PRECISION X3,Y3,Z3,T3,PI,frap,tau,cosheta,ux,uy,eta,
+     & PX,PY,PZ,PE,costheta,unorm,pnorm
 c--   function calls
       double precision getfrap,getux,getuy,gettemp
       
       DATA PI/3.141592653589793d0/
-      tau = sqrt(t3**2-z3**2)
-      cosheta = t3/tau
-      eta = 0.5*log((t3+z3)/(t3-z3))
-      ux=getux(x3,y3,z3,t3)
-      uy=getuy(x3,y3,z3,t3)
-      frap = getfrap(ux,uy)
-      if (eta.gt.etamax2) then
-         getneff = 0.d0
-      else
+
+      if (withflow) then
+         tau = sqrt(t3**2-z3**2)
+         cosheta = t3/tau
+         eta = 0.5*log((t3+z3)/(t3-z3))
+         ux=getux(x3,y3,z3,t3)
+         uy=getuy(x3,y3,z3,t3)
+         frap = getfrap(ux,uy)
+
+C--   Find angle between fluid velocity and parton momentum
+         unorm = sqrt(ux**2 + uy**2)
+         pnorm = sqrt(px**2 + py**2)
+         costheta = (ux*px +uy*py)/(unorm*pnorm)
+
+C--   Compute density and scale by (angled) boost
+         if (eta.gt.etamax2) then
+            getneff = 0.d0
+         else
+            GETNEFF=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+     &        *GETTEMP(X3,Y3,Z3,T3)**3/PI**2
+            getneff = getneff/(cosh(frap) - sinh(frap)*costheta)
+         endif
+      else 
          GETNEFF=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &        *GETTEMP(X3,Y3,Z3,T3)**3/PI**2
-         getneff = getneff/cosheta/cosh(frap)
       endif
+
+C--   Add longitudinal boost
+      getneff=getneff/cosheta
+      
       END
 
-c -------------------------------------------------------------
-c   GETN function.  
-c -------------------------------------------------------------
-      DOUBLE PRECISION FUNCTION GETN(X3,Y3,Z3,T3)
-      use MEDPARAM
-      use MEDPARAMINT
-      use rapmax2
-      IMPLICIT NONE
-C--   local variables
-      DOUBLE PRECISION X3,Y3,Z3,T3,PI,frap,tau,cosheta,ux,uy,eta
-c--   function calls
-      double precision getfrap,getux,getuy,gettemp
-      DATA PI/3.141592653589793d0/
-      tau = sqrt(t3**2-z3**2)
-      cosheta = t3/tau
-      eta = 0.5*log((t3+z3)/(t3-z3))
-      ux=getux(x3,y3,z3,t3)
-      uy=getuy(x3,y3,z3,t3)
-      frap = getfrap(ux,uy)
-      if (eta.gt.etamax2) then
-         getn = 0.d0
-      else
-         GETN=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
-     &        *GETTEMP(X3,Y3,Z3,T3)**3/PI**2
-         getn = getn/cosheta/cosh(frap)
-      endif
-      END
-      
-      
-c -------------------------------------------------------------
-c   GETTEMP function.  
-c   Interpolate between temperature values at the nearest grid 
-c   points read in from contours in order to estimate the 
-c   temperature at a given position.
-c -------------------------------------------------------------
+
+          
+
       DOUBLE PRECISION FUNCTION GETTEMP(X,Y,Z,T)
       use MEDPARAM
       use MEDPARAMINT
@@ -764,12 +726,7 @@ C--   Estimate temp at (tau,x,y)
       END
 
 
-c -------------------------------------------------------------
-c   GETUX function.  
-c   Interpolate between velocity values at the nearest grid 
-c   points read in from contours in order to estimate the 
-c   velocity at a given position.
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION GETUX(X,Y,Z,T)
       use MEDPARAM
       use MEDPARAMINT
@@ -854,12 +811,10 @@ C--   Find gradient along line parallel with y
                END
 
 
-c -------------------------------------------------------------
-c   GETUY function.  
-c   Interpolate between velocity values at the nearest grid 
-c   points read in from contours in order to estimate the 
-c   velocity at a given position.
-c -------------------------------------------------------------      
+
+
+
+      
       DOUBLE PRECISION FUNCTION GETUY(X,Y,Z,T)
       use MEDPARAM
       use MEDPARAMINT
@@ -946,21 +901,16 @@ C--   Find gradient along line parallel with y
 
 
       
-c -------------------------------------------------------------
-c   GETFRAP function.  
-c   Compute fluid rapidity given u_x and u_y
-c -------------------------------------------------------------    
+
       DOUBLE PRECISION FUNCTION GETFRAP(UX,UY)
       implicit none
       double precision umag,ux,uy
 
       umag=sqrt(ux**2+uy**2)
-      getfrap=asinh(umag)
+      getfrap=atanh(umag)
       end
       
-c -------------------------------------------------------------
-c   GETMDMAX function.  
-c -------------------------------------------------------------    
+
       DOUBLE PRECISION FUNCTION GETMDMAX()
       use MDFAC
       use tempgrid
@@ -970,9 +920,7 @@ c -------------------------------------------------------------
       END
 
 
-c -------------------------------------------------------------
-c   GETMDMIN function.  
-c -------------------------------------------------------------    
+
       DOUBLE PRECISION FUNCTION GETMDMIN()
       use MEDPARAM
       use MEDPARAMINT
@@ -983,9 +931,7 @@ c -------------------------------------------------------------
       END
 
 
-c -------------------------------------------------------------
-c   GETMSMAX function.  
-c -------------------------------------------------------------    
+
       DOUBLE PRECISION FUNCTION GETMSMAX()
       use tempgrid
       IMPLICIT NONE
@@ -994,9 +940,7 @@ c -------------------------------------------------------------
       END
 
 
-c -------------------------------------------------------------
-c   GETNATMDMIN function.  
-c -------------------------------------------------------------    
+
       DOUBLE PRECISION FUNCTION GETNATMDMIN()
       use MEDPARAM
       use MEDPARAMINT
@@ -1010,13 +954,11 @@ C--   local variables
       T=GETMDMIN()/(MDSCALEFAC*3.)
       GETNATMDMIN=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &     *T**3/PI**2
-!     getnatmdmin=getnatmdmin*cosh(etamax2)*cosh(rapmax)
+!     getnatmdmin=getnatmdmin*(cosh(rapmax) + sinh(rapmax))
       END
 
 
-c -------------------------------------------------------------
-c   GETLTIMEMAX function.  
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION GETLTIMEMAX()
       use MEDPARAM
       use MEDPARAMINT
@@ -1028,35 +970,30 @@ C--   function call
       DOUBLE PRECISION getfrap
 c--   local variables
       double precision rapmax
-      rapmax=getfrap(uxmax,uymax)
-      GETLTIMEMAX=TAUI*(tempmax/TC)**3*cosh(etamax2)*cosh(rapmax)
+      rapmax=atanh(umax)
+      GETLTIMEMAX=TAUI*(tempmax/TC)**3*(cosh(rapmax) + sinh(rapmax))
       END
 
 
-c -------------------------------------------------------------
-c   GETNEFFMAX function.  
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION GETNEFFMAX()
       use MEDPARAM
       use MEDPARAMINT
-      use rapmax2
       use velgrid
       use tempgrid
       IMPLICIT NONE
 C--   local variables
-      DOUBLE PRECISION PI
+      DOUBLE PRECISION PI,neffmaxtemp,rapmax
       DATA PI/3.141592653589793d0/
-      GETNEFFMAX=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+
+      neffmaxtemp=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &     *tempmax**3/PI**2
-!     getneffmax = getneffmax*cosh(etamax2)*cosh(rapmax)
+      rapmax=atanh(umax)
+      getneffmax=neffmaxtemp/(cosh(rapmax)-sinh(rapmax))
       END
       
       
-c -------------------------------------------------------------
-c   NPART function.  
-c   Determine the number of participating nucleons from 
-c   overlapping thickness functions
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION NPART(XX1,YY1,XX2,YY2)
       use medparamint
       IMPLICIT NONE
@@ -1067,10 +1004,7 @@ C--   local variables
       END
       
 
-c -------------------------------------------------------------
-c   NTHICK function.  
-c   Compute the thickness function
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION NTHICK(X1,Y1)
       use MEDPARAM
       use MEDPARAMINT
@@ -1100,9 +1034,7 @@ C--   local variables
       ENDIF
       END
 
-c -------------------------------------------------------------
-c   CALCTA subroutine.  
-c -------------------------------------------------------------
+
 
       SUBROUTINE CALCTA()
       use MEDPARAM
@@ -1133,9 +1065,7 @@ C--   integrate along longitudinal line
       END
 
 
-c -------------------------------------------------------------
-c   CALCXSECTION subroutine.  
-c -------------------------------------------------------------
+
       SUBROUTINE CALCXSECTION()
       use MEDPARAM
       use MEDPARAMINT
@@ -1172,9 +1102,7 @@ C--   local variables
       END
 
 
-c -------------------------------------------------------------
-c   MEDDERIV function.  
-c -------------------------------------------------------------
+
       DOUBLE PRECISION FUNCTION MEDDERIV(XVAL,W)
       use MEDPARAMINT
       use INTEG
@@ -1191,10 +1119,6 @@ C--   XVAL corresponds to z-coordinate
       ENDIF
       END
 
-c -------------------------------------------------------------
-c   readtemps subroutine
-c   Read temperatures from input contour files.  
-c -------------------------------------------------------------
       subroutine readtemps(filename)
       use MEDPARAMINT
       use tempgrid
@@ -1387,10 +1311,7 @@ C--   Give warning if no max temperature.
 
       end
 
-c -------------------------------------------------------------
-c   readvelocities subroutine
-c   Read fluid velocities from input contour files.  
-c -------------------------------------------------------------
+
       subroutine readvelocities(filename)
       use MEDPARAMINT
       use velgrid
@@ -1494,7 +1415,9 @@ c     -same number of them in the list. Fortran rounds _down_ to integers.
  
 
          iolist=0               !Tracks READ errors and looks for the end of the file    
-         tauc=0         
+         tauc=0    
+         umax=0
+     
 C--   Determine location of timestamp value in file name
          dataFileLength=len(TRIM(dvfileph))
 C--         Step through each file in the list.  
@@ -1515,9 +1438,7 @@ C--         Step through each file in the list.
 C--   Fill arrays.           
                xc=1             !Counters to keep track of x and y
                yc=1
-               uxmax=0.
-               uymax=0.
-
+               
 
                
                do               !Check if the first line contains a header
@@ -1561,12 +1482,12 @@ C--   Fill arrays.
                      Uys(tauc,xc,yc)=uyph
                   end if
 
-                  if(uxph.gt.uxmax)uxmax=uxph
-                  if(uyph.gt.uymax)uxmax=uyph
+                  unorm=sqrt(uxph**2+uyph**2)
+                  if(unorm.gt.umax)umax=unorm
                   ntauvals2=tauc
                   nxvals2=xc
                   nyvals2=yc
-C--   End of reading in temperatures from vfileph               
+C--   End of reading in velocities from vfileph               
                end do
 
             else
@@ -1581,6 +1502,7 @@ C--   End of reading in temperatures from vfileph
          
 C--   End of reading all time snapshots
  202     close(vlistun,status='keep') !Close the lsit of files
+
          
          
       else
@@ -1589,8 +1511,7 @@ C--   End of reading all time snapshots
       end
 
 c -------------------------------------------------------------
-c   READNCOLL function 
-c   Reads Ncollhistogram data
+c   READNCOLL function - reads Ncollhistogram
 c -------------------------------------------------------------      
       SUBROUTINE READNCOLL(filename)
         use MEDPARAM
@@ -1721,7 +1642,7 @@ C--   Fill arrays.
 C--   End of reading in Ncoll list 
 			end do
 
-C--	  Create ncoll probability distribution
+C--	  Create ncoll pdist
 			allocate (ncollpDist(ncollSum,2), STAT=ncollpDistSTAT)	
 			if (ncollpDistSTAT.ne.0) then
                STOP
