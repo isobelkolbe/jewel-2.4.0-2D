@@ -405,7 +405,7 @@ C--Variables local to this program
 	CHARACTER*2 SNSET
       CHARACTER*80 PDFFILE,XSECFILE,FILESPLIT,
      &label
-      CHARACTER*120 HEPMCFILE,LOGFILE,FILENAME2
+      CHARACTER*150 HEPMCFILE,LOGFILE,FILENAME2
 	CHARACTER(LEN=100) filename
 	LOGICAL PDFEXIST,SPLITIEXIST,XSECEXIST
         CHARACTER*350 FILEMED,buffer,value
@@ -3249,7 +3249,7 @@ C--local variables
 
       IF(MD1.LE.1.D-4.OR.MS1.LE.1.D-4)THEN
        write(logfid,*)'problem!',GETTEMP(XSC,YSC,ZSC,TSC),
-     &GETNEFF(XSC,YSC,ZSC,TSC)
+     &GETNEFF(XSC,YSC,ZSC,TSC,P(L,1),P(L,2))
       ENDIF
 
 C--check for scattering
@@ -6905,7 +6905,7 @@ C--calculate upper limit for density*cross section
 	 ELSE
 	  TAU=SQRT(TS**2-ZS**2)
 	 ENDIF
-	 NEFF=GETNEFF(XS,YS,ZS,TS)
+	 NEFF=GETNEFF(XS,YS,ZS,TS,P(LINE,1),P(LINE,2))
 	 IF((TAU.GT.1.d0).AND.(NEFF.EQ.0.d0))THEN
 	  IF(NNULL.GT.4)THEN
 	   STOPNOW=.TRUE.
