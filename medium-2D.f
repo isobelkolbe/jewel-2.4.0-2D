@@ -5,8 +5,8 @@ C--   medium parameters
       implicit none      
       INTEGER NF
       DOUBLE PRECISION:: CENTRMIN,CENTRMAX,BREAL,CENTR,RAU=10.,
-     & BMIN, BMAX
-      CHARACTER*150 HYDRODIR,NCOLLHISTO    
+     & BMIN, BMAX, UMAXMAX
+      character*300 HYDRODIR,NCOLLHISTO    
       save
       end module MEDPARAM
 
@@ -41,19 +41,40 @@ C--   velocity grids (ux and uy)
       save
       end module velgrid      
 
-C--   max rapidity
-      module rapmax
+C--   max fluid rapidity
+      module flrapmax
       implicit none
-      double precision etamax
+      double precision rapmax
       save
-      end module rapmax 
+      end module flrapmax 
 
-C--   max rapidity 2
+C--   max rapidity 2 (used for max longitudinal boost.)
       module rapmax2
       implicit none
       double precision etamax2
       save
-      end module rapmax2        
+      end module rapmax2 
+
+C--   max and min effective fluid density
+      module neffMaxMin
+      implicit none
+      double precision neffmax, natmdmin
+      save
+      end module neffMaxMin 
+
+C--   max and min MD, max MS
+      module mdMinMax
+      implicit none
+      double precision mdMinVal, mdMaxVal, msMaxVal
+      save
+      end module mdMinMax 
+
+C--   max ltime
+      module ltimemax
+      implicit none
+      double precision ltimemaxVal
+      save
+      end module ltimemax        
 
 C--   longitudinal boost of momentum distribution
       module boostmed
@@ -117,21 +138,26 @@ C--   Ncoll grid
       use MEDPARAMINT
       use tempgrid
       use velgrid
+      use flrapmax
       use rapmax2
+      use neffMaxMin
       use boostmed
       use MDFAC
       use THICKFNC
       use CROSSEC
       use logfile
+      use ltimemax
+      use mdMinMax
       
 
       IMPLICIT NONE
 C--   local variables
       INTEGER I,LUN,POS,IOS,id,intmass
-      double precision etam
-      CHARACTER*100 LABEL,tempbuf
-      CHARACTER*150 vlist,tlist
-      Character*150 FILE, buffer
+      double precision etam,neffmaxtemp,PI
+      DATA PI/3.141592653589793d0/
+      character*300 LABEL,tempbuf
+      character*300 vlist,tlist
+      character*300 FILE, buffer
       character(len=:), allocatable :: TlistCommand, VlistCommand
       character firstchar
       logical fileexist
@@ -150,7 +176,7 @@ C--   default settings
       BMIN=0.d0
       BMAX=4.93d0
       NF=3
-      A=208   
+      A=208    
       N0=0.17d0
       D=0.54d0
       SIGMANN=6.76
@@ -159,6 +185,7 @@ C--   default settings
       withflow=.true.
       HYDRODIR='/hydro/'
       NCOLLHISTO='/ncollhisto/'
+      UMAX=-1
 
 C--   read settings from file
       write(logfid,*)
@@ -209,6 +236,8 @@ C--   read settings from file
                write(logfid,*)'You provided ncollhisto, please '//
      &           'make sure to also provide bmin, bmax,'//
      &           ' centrmin, centrmax' 
+            elseif(label.eq."UMAX")then
+               read(BUFFER,*,iostat=ios) umaxmax
                
 	    else
                write(logfid,*)'unknown label ',label
@@ -249,15 +278,13 @@ C--   read settings from file
 c--   If Ncoll is given, read it in, otherwise compute TA
 c--   and the geometric cross section using a model
       if (NCOLLHISTO.eq.'/ncollhisto/') then
+         write(*,*)'No NCOLLHISTO provided, will use a model.'
          CALL CALCTA  
          CALL CALCXSECTION   
       else
          CALL READNCOLL(NCOLLHISTO)
       endif
 
-
-      
-      
       
 C--   Read in hydro profiles:      
       write(*,*)'The hydro profiles I will read are in ',hydrodir
@@ -282,11 +309,24 @@ C--   read in fluid rapidity profile
       write(*,*)'Done reading velocities.'
       write(*,*)''
 
-      write(*,*)'I read everything, now test for non-zero grids'
-      write(*,*)'uxs (2,1,1): ',uxs(2,1,1)
-      write(*,*)'uys (2,1,1): ',uys(2,1,1)
-      write(*,*)'xs (10): ',xs(10)
-      write(*,*)'temps (1,10,10): ',temps(1,10,10)
+      write(*,*)'I read everything, some test values:'
+      write(*,*)'Max fluid velocity: ',umax
+      write(*,*)'Max neff: ', neffmax
+      write(*,*)'rapmax: ',rapmax
+      write(*,*)'etamax2: ',etamax2
+      write(*,*)'natmdmin: ',natmdmin
+
+C--   Set LTIMEMAX
+      ltimemaxVal=TAUI*(tempmax/TC)**3*(cosh(rapmax))
+
+C--   Set max and min MD, max MS
+      mdMaxVal=MDSCALEFAC*3.*tempmax
+      mdMaxVal=MAX(mdMaxVal,MDFACTOR)
+
+      mdMinVal=MDSCALEFAC*3.*TC
+      mdMinVal=MAX(mdMinVal,MDFACTOR)
+
+      msMaxVal=3.*tempmax/SQRT(2.D0)
       
       End
 
@@ -366,7 +406,7 @@ c--      No Ncoll data given - use a model
          Z=NTHICK(XVAL-BREAL/2.,YVAL)*NTHICK(XVAL+BREAL/2.,YVAL)
          IF(ZVAL.GT.Z) GOTO 131
          X=XVAL
-         Y=YVAL            
+         Y=YVAL 
       else
 c--      Ncoll data given, choose vertex by random sampling of weighted distribution:
 c--      Readncoll will have also created a list of all the bins with binary collisions
@@ -424,11 +464,10 @@ C--   function calls
       umag=sqrt(ux**2+uy**2)
       pmax = 10.*temp
       
+      yst = 0.5*log((t+z)/(t-z))
       if (withflow) then
-         yst = 0.5*log((t+z)/(t-z))
          frap = getfrap(ux,uy)
       else 
-         yst = 0.d0
          frap = 0.d0
       endif
       if (umag.gt.0.d0) then
@@ -526,7 +565,6 @@ c--   function calls
 
       SUBROUTINE maxscatcen(PX,PY,PZ,E,m)
       use boostmed
-      use rapmax
       use rapmax2
       use velgrid
       IMPLICIT NONE
@@ -582,35 +620,42 @@ c--   function calls
       
       DATA PI/3.141592653589793d0/
 
-      if (withflow) then
-         tau = sqrt(t3**2-z3**2)
-         cosheta = t3/tau
-         eta = 0.5*log((t3+z3)/(t3-z3))
-         ux=getux(x3,y3,z3,t3)
-         uy=getuy(x3,y3,z3,t3)
-         frap = getfrap(ux,uy)
-
-C--   Find angle between fluid velocity and parton momentum
-         unorm = sqrt(ux**2 + uy**2)
-         pnorm = sqrt(px**2 + py**2)
-         costheta = (ux*px +uy*py)/(unorm*pnorm)
-
-C--   Compute density and scale by (angled) boost
-         if (eta.gt.etamax2) then
-            getneff = 0.d0
-         else
-            GETNEFF=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+      tau = sqrt(t3**2-z3**2)
+      cosheta = t3/tau
+      eta = 0.5*log((t3+z3)/(t3-z3))
+      
+c--   Ideal gas of NF flavours q and g
+      GETNEFF=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &        *GETTEMP(X3,Y3,Z3,T3)**3/PI**2
-            getneff = getneff/(cosh(frap) - sinh(frap)*costheta)
+            
+      if (eta.gt.etamax2) then
+         getneff = 0.d0
+      else
+         if (withflow) then         
+            ux=getux(x3,y3,z3,t3)
+            uy=getuy(x3,y3,z3,t3)
+            frap = getfrap(ux,uy)
+
+C--         Find angle between fluid velocity and parton momentum
+            unorm = sqrt(ux**2 + uy**2)
+            pnorm = sqrt(px**2 + py**2)
+            costheta = (ux*px +uy*py)/(unorm*pnorm)
+
+C--         Compute density and scale by (angled) boost
+            
+            getneff = getneff*(cosh(frap) - sinh(frap)*costheta)
+         else 
+C--         No transverse boost if withflow=.false.
+            GETNEFF=getneff
          endif
-      else 
-         GETNEFF=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
-     &        *GETTEMP(X3,Y3,Z3,T3)**3/PI**2
+         
+C--      Always apply longitudinal boost.
+         getneff=getneff/cosheta
+
+         
+      
       endif
 
-C--   Add longitudinal boost
-      getneff=getneff/cosheta
-      
       END
 
 
@@ -912,84 +957,56 @@ C--   Find gradient along line parallel with y
       
 
       DOUBLE PRECISION FUNCTION GETMDMAX()
-      use MDFAC
-      use tempgrid
+      use mdMinMax
       IMPLICIT NONE
-      GETMDMAX=MDSCALEFAC*3.*tempmax
-      GETMDMAX=MAX(GETMDMAX,MDFACTOR)
+C--   mdMaxVal is calculated in MEDINIT - so just fetch it
+      GETMDMAX=mdMaxVal
       END
 
 
 
       DOUBLE PRECISION FUNCTION GETMDMIN()
-      use MEDPARAM
-      use MEDPARAMINT
-      use MDFAC
+      use mdMinMax
       IMPLICIT NONE
-      GETMDMIN=MDSCALEFAC*3.*TC
-      GETMDMIN=MAX(GETMDMIN,MDFACTOR)
+C--   mdMinVal is calculated in MEDINIT - so just fetch it
+      GETMDMIN=mdMinVal
       END
 
 
 
       DOUBLE PRECISION FUNCTION GETMSMAX()
-      use tempgrid
+      use mdMinMax
       IMPLICIT NONE
-      DOUBLE PRECISION SQRT
-      GETMSMAX=3.*tempmax/SQRT(2.D0)
+C--   mxMaxVal is calculated in MEDINIT - so just fetch it
+      GETMSMAX=msMaxVal
       END
 
 
 
       DOUBLE PRECISION FUNCTION GETNATMDMIN()
-      use MEDPARAM
-      use MEDPARAMINT
-      use rapmax2
-      use velgrid
-      use MDFAC
+      use neffMaxMin
       IMPLICIT NONE
-C--   local variables
-      DOUBLE PRECISION T,GETMDMIN,pi
-      DATA PI/3.141592653589793d0/
-      T=GETMDMIN()/(MDSCALEFAC*3.)
-      GETNATMDMIN=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
-     &     *T**3/PI**2
-!     getnatmdmin=getnatmdmin*(cosh(rapmax) + sinh(rapmax))
+C--   natmdmin is calculated in MEDINIT - so just fetch it
+      getnatmdmin=natmdmin
       END
 
 
 
       DOUBLE PRECISION FUNCTION GETLTIMEMAX()
-      use MEDPARAM
-      use MEDPARAMINT
-      use rapmax2
-      use velgrid
-      use tempgrid
-      IMPLICIT NONE
-C--   function call
-      DOUBLE PRECISION getfrap
-c--   local variables
-      double precision rapmax
-      rapmax=atanh(umax)
-      GETLTIMEMAX=TAUI*(tempmax/TC)**3*(cosh(rapmax) + sinh(rapmax))
+      use ltimemax
+      IMPLICIT none
+C--   ltimemax is calculated in MEDINIT - so just fetch it
+      GETLTIMEMAX=ltimemaxVal
       END
 
 
 
       DOUBLE PRECISION FUNCTION GETNEFFMAX()
-      use MEDPARAM
-      use MEDPARAMINT
-      use velgrid
-      use tempgrid
+      use neffMaxMin
       IMPLICIT NONE
-C--   local variables
-      DOUBLE PRECISION PI,neffmaxtemp,rapmax
-      DATA PI/3.141592653589793d0/
 
-      neffmaxtemp=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
-     &     *tempmax**3/PI**2
-      rapmax=atanh(umax)
-      getneffmax=neffmaxtemp/(cosh(rapmax)-sinh(rapmax))
+C--   Neffmax is calculated in MEDINIT - so just fetch it
+      getneffmax=neffmax  
       END
       
       
@@ -1128,8 +1145,8 @@ C--   local variables
       integer i,dunit,tlistun,tauc,xc,yc,iolist,iot,dtauc,dxc
      $,diolist,diot,dataFileLength
       logical listexist,fileexist
-      character*80 format,ctau
-      character*150 tfileph,dtfileph,filename
+      character*300 format,ctau
+      character*300 tfileph,dtfileph,filename
       double precision xph,yph,tauph,tph,dxph,dyph,dtph
 
       
@@ -1139,12 +1156,11 @@ C--   Check that the list of data files exists and open it.
          tlistun=13
 
          open(unit=tlistun,file=filename,status='old')
-         write(*,*)'I have opened ',filename
+         write(*,*)'Try to read temps: I have opened ',filename
          iolist=0               !Tracks READ errors and looks for the end of the file    
          tauc=0
 
-C--   Determine how many data files there are
-         
+C--   Determine how many data files there are         
          dtauc=0
          do
             read(tlistun,95,iostat=diolist) dtfileph
@@ -1228,7 +1244,7 @@ C--   Open data files
             read(tlistun,95,iostat=iolist) tfileph
             if(iolist.ne.0) go to 102
             tauc=tauc+1          ! Increment tau counter
- 95         format(A150)
+ 95         format(A300)
             ctau=tfileph(dataFileLength-5:dataFileLength)  ! Get value of tau from the (full) filename
             read(ctau,94) tauph  
             taus(tauc)=tauph
@@ -1314,17 +1330,22 @@ C--   Give warning if no max temperature.
 
       subroutine readvelocities(filename)
       use MEDPARAMINT
+      use medparam
       use velgrid
       use logfile
+      use flrapmax
+      use neffMaxMin
       implicit none
 C     --   local variables
       integer i,dunit,vlistun,tauc,xc,yc,iolist,iov,dtauc
      $,diolist,diov,dxc,dataFileLength
       logical listexist,fileexist
-      character*80 format,ctau
-      character*150 filename,vfileph,dvfileph
+      character*300 format,ctau
+      character*300 filename,vfileph,dvfileph
       double precision xph,yph,tph,uxph,uyph,dxph,dyph,duxph,duyph
+      double precision temp,gettemp,neffph,pi,frap
 
+      DATA PI/3.141592653589793d0/
 
 c     -check that the list of data files exists and open it      
       inquire(file=filename,exist=listexist)
@@ -1332,7 +1353,7 @@ c     -check that the list of data files exists and open it
          vlistun=14
 
          open(unit=vlistun,file=filename,status='old')
-         write(*,*)'I have opened ',filename
+         write(*,*)'Try to read velocities: I have opened ',filename
 
 c     -Determine how many data files there are
        
@@ -1417,6 +1438,7 @@ c     -same number of them in the list. Fortran rounds _down_ to integers.
          iolist=0               !Tracks READ errors and looks for the end of the file    
          tauc=0    
          umax=0
+         neffmax=0
      
 C--   Determine location of timestamp value in file name
          dataFileLength=len(TRIM(dvfileph))
@@ -1425,7 +1447,7 @@ C--         Step through each file in the list.
             read(vlistun,83,iostat=iolist) vfileph
             if(iolist.ne.0) go to 202
             tauc=tauc+1
- 83         format(A150)
+ 83         format(A300)
             ctau=vfileph(dataFileLength-5:dataFileLength)
             read(ctau,82) tph
             taus2(tauc)=tph
@@ -1455,7 +1477,19 @@ C--   Fill arrays.
               
                iov=0            !Tracks READ errors and looks for the end of the file
                do while (iov.eq.0) !Iterate over all the rows in the data file
-                  read(dunit,*,iostat=iov) xph,yph,Uxph,Uyph !Place holders           
+                  read(dunit,*,iostat=iov) xph,yph,Uxph,Uyph !Place holders 
+
+C--               Use user-defined maximum fluid velocity if given
+                  if ((umaxmax.gt.0.d0).and.(umax.gt.umaxmax)) umax=umaxmax  
+                  unorm=sqrt(uxph**2+uyph**2)
+
+                  if(unorm.gt.umaxmax) then  !Rescale
+                    uxph=uxph/unorm*umaxmax
+                    uyph=uyph/unorm*umaxmax
+                    unorm=sqrt(uxph**2+uyph**2)
+                  end if
+                  if(unorm.gt.umax)umax=unorm
+
                   if ((xph.eq.xs2(xc)).and.(yph.gt.ys2(yc))) then
                      yc=yc+1
                      ys2(yc)=yph
@@ -1481,14 +1515,32 @@ C--   Fill arrays.
                      Uxs(tauc,xc,yc)=uxph
                      Uys(tauc,xc,yc)=uyph
                   end if
+                  
+c-- Check for maximum fluid velocity and effective density
+                  TEMP=GETTEMP(xph,yph,0.d0,tph)
+                  frap = atanh(unorm)
 
-                  unorm=sqrt(uxph**2+uyph**2)
-                  if(unorm.gt.umax)umax=unorm
+                  neffph=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+     &        *TEMP**3/PI**2
+c-             Max neff when parton moving against direction of fluid     
+                  neffph=neffph*(cosh(frap) + sinh(frap))
+                  if(neffph.gt.neffmax)neffmax=neffph
+
                   ntauvals2=tauc
                   nxvals2=xc
                   nyvals2=yc
 C--   End of reading in velocities from vfileph               
                end do
+
+
+C--            Calculate maximum fluid rapidity
+               if (withflow) rapmax=atanh(umax)
+               if (umax.eq.0.d0) withflow=.false.
+               if (.not. withflow) rapmax=0  
+
+               NATMDMIN=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+     &         *TC**3/PI**2
+               natmdmin=natmdmin*(cosh(rapmax)+sinh(rapmax))
 
             else
                write(*,*)'This velocity file  does not exist: ',vfileph               
@@ -1525,7 +1577,7 @@ C--   local variables
      &		nzci, nzcj, ncollint, ncollpi
         DOUBLE PRECISION EPS,HFIRST,Y1,Y2
          logical histoexists
-         character*150 filename
+         character*300 filename
          double precision xph, yph, ncollph, dxph, dyph, dncollph
 
         NSTEPS=100
@@ -1538,8 +1590,9 @@ C--   Check that the NColl histogram file exists and open it.
 			histoun=30
 
 			open(unit=histoun,file=filename,status='old')
-			write(*,*)'I have opened ',filename
-			iolist=0               !Tracks READ errors and looks for the end of the file    
+			write(*,*)'Try to read ncollhisto: I have opened ',filename
+			iolist=0               !Tracks READ errors and looks for the end of the file  
+         dxc=0                   ! Set size counter to zero  
 			
 c--	  See how long this file is
 			
