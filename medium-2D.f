@@ -128,7 +128,7 @@ C--   Ncoll grid
       double precision, allocatable :: ncollNZ(:,:)
       double precision, allocatable :: ncollpDist(:,:)
       save
-      end module ncollgrid        
+      end module ncollgrid    
 
       
 
@@ -185,7 +185,7 @@ C--   default settings
       withflow=.true.
       HYDRODIR='/hydro/'
       NCOLLHISTO='/ncollhisto/'
-      UMAX=-1
+      UMAXMAX=-1
 
 C--   read settings from file
       write(logfid,*)
@@ -273,6 +273,7 @@ C--   read settings from file
       write(logfid,*)'BOOST      = ',withflow
       write(logfid,*)'HYDRODIR   = ',hydrodir
       write(logfid,*)'NCOLLHISTO = ',ncollhisto
+      write(logfid,*)'UMAX       = ',umaxmax
       write(logfid,*)
 
 c--   If Ncoll is given, read it in, otherwise compute TA
@@ -315,6 +316,7 @@ C--   read in fluid rapidity profile
       write(*,*)'rapmax: ',rapmax
       write(*,*)'etamax2: ',etamax2
       write(*,*)'natmdmin: ',natmdmin
+      write(*,*)'taus(ntauvals): ',taus(ntauvals)
 
 C--   Set LTIMEMAX
       ltimemaxVal=TAUI*(tempmax/TC)**3*(cosh(rapmax))
@@ -327,6 +329,8 @@ C--   Set max and min MD, max MS
       mdMinVal=MAX(mdMinVal,MDFACTOR)
 
       msMaxVal=3.*tempmax/SQRT(2.D0)
+
+
       
       End
 
@@ -417,11 +421,14 @@ c--      Select a bin randomly.
          
          
 c--   	Lastly, choose a random location in the histo square located at nci:
-c--	   Remember that readncoll stores the midpoint of the histo edges         
+c--	   Remember that readncoll stores the midpoint of the histo edges
          dx=(ncollxs(2)-ncollxs(1))
          dy=dx
          X = ncollNZ(rndIndex,1)+ (pyr(0)-0.5) * dx
          Y = ncollNZ(rndIndex,2)+ (pyr(0)-0.5) * dy
+
+c         write(100,*)'V (X, Y): ', X, Y
+c         write(101,*)'V (X, Y): ', X, Y
       endif
       END
 
@@ -459,11 +466,19 @@ C--   function calls
          MS=GETMD(X,Y,Z,T)
       ENDIF
       TEMP=GETTEMP(X,Y,Z,T)
-      ux=getux(x,y,z,t)
-      uy=getuy(x,y,z,t)
-      umag=sqrt(ux**2+uy**2)
-      pmax = 10.*temp
       
+      if(temp.gt.tc) then
+         ux=getux(x,y,z,t)
+         uy=getuy(x,y,z,t)
+         umag=sqrt(ux**2+uy**2)
+         pmax = 10.*temp
+      else
+         ux=0.d0
+         uy=0.d0
+         umag=0.d0
+         pmax = 10.*temp
+      end if
+
       yst = 0.5*log((t+z)/(t-z))
       if (withflow) then
          frap = getfrap(ux,uy)
@@ -530,6 +545,11 @@ C--   longitudinal boost
       pz=pzb
       px=pxb
       py=pyb
+
+
+C--   IK: Write to file
+c      write(100, *) T, X, Y, Z,  PX, PY, PZ, E
+
       END
 
 
@@ -690,9 +710,14 @@ C--   Fail if outside the rapidity range
 C--   Compute the proper time and radial position
       TAU=SQRT(abs(T**2-Z**2))
 
+C--   Return 0 if the profile grid
+      if (tau.gt.taus(ntauvals)) return
+      if (x.gt.xs(nxvals)) return
+      if (y.gt.ys(nyvals)) return
+
 
       tauline = min(int((tau-taui)/deltatau)+1,ntauvals-1)
-      tauline = max(tauline,1)               
+      tauline = max(tauline,1)   
 
 
       xline = min(int((x-xs(1))/deltax)+1,nxvals-1)
@@ -732,6 +757,8 @@ C--   Find gradient between y vals, estimate T at x,y, and ramp down to tau
          MC=(YC(2)-YC(1))/(X3A(2)-X3A(1))
          YD=YC(1)+MC*(y-X3A(1))
          gettemp=YD*(tau/taui)
+      
+      
       else
 C--   For tau > taui, need to interpolate in tau direction as well
          do 340 i=1,2
@@ -767,7 +794,9 @@ C--   Estimate temp at (tau,x,y)
          GETTEMP=YC(1)+mC*(y-X3A(1))
 
       end if
+
       IF(GETTEMP.LT.TC) GETTEMP=0.d0
+
       END
 
 
@@ -791,6 +820,8 @@ C--   local variables
       deltax=abs(xs2(2)-xs2(1))
       deltay=abs(ys2(2)-ys2(1))
 
+      getux = 0d0
+
       IF(ABS(Z).GT.T)RETURN
 
       if (t.lt.z) write(logfid,*) 'error in GETUX: t < z',t,z
@@ -809,12 +840,15 @@ C--   local variables
       yline = max(yline,1)
 
 
-
-
       IF(TAU.LT.TAUI)THEN
-         getux = 0.
          return
       ELSE
+
+C--   Return 0 if outside the profile grid
+      if (tau.gt.taus2(ntauvals2)) return
+      if (x.gt.xs2(nxvals2)) return
+      if (y.gt.ys2(nyvals2)) return
+
 
 C--   Need vectors containing tau,x,y and u values at corners
          do 40 i=1,2
@@ -833,27 +867,30 @@ C--   Need vectors containing tau,x,y and u values at corners
          
 
 C--   Find gradients on lines parallel with tau and estimate T at tau vals
-               do 420 i=1,2
-                  do 421 j=1,2
-                     mA(i,j)=(YA(2,i,j)-YA(1,i,j))/(X1A(2)-X1A(1))
-                     YB(i,j)= YA(1,i,j)+mA(i,j)*(tau-X1A(1))
-                     
- 421              continue
- 420           continue
+         do 420 i=1,2
+            do 421 j=1,2
+               mA(i,j)=(YA(2,i,j)-YA(1,i,j))/(X1A(2)-X1A(1))
+               YB(i,j)= YA(1,i,j)+mA(i,j)*(tau-X1A(1))
+               
+               
+421              continue
+420           continue
 
 C--   Find gradients along lines parallel with x and estimate T at x vals
-                  do 43 i=1,2
-                     mB(i)=(YB(2,i)-YB(1,i))/(X2A(2)-X2A(1))
-                     YC(i)=YB(1,i)+mB(i)*(x-X2A(1))
-                     
- 43               continue
+            do 43 i=1,2
+               mB(i)=(YB(2,i)-YB(1,i))/(X2A(2)-X2A(1))
+               YC(i)=YB(1,i)+mB(i)*(x-X2A(1))
+               
+43               continue
 C--   Find gradient along line parallel with y
-                  mC=(YC(2)-YC(1))/(X3A(2)-X3A(1))
-                  GETUx=YC(1)+mC*(y-X3A(1))
+            mC=(YC(2)-YC(1))/(X3A(2)-X3A(1))
+            GETUx=YC(1)+mC*(y-X3A(1))
 
-               end if
+         end if
 
-               END
+         
+
+         END
 
 
 
@@ -879,6 +916,9 @@ C--   local variables
       deltax=abs(xs2(2)-xs2(1))
       deltay=abs(ys2(2)-ys2(1))
 
+
+      getuy = 0d0
+
       IF(ABS(Z).GT.T)RETURN
 
       if (t.lt.z) write(logfid,*) 'error in GETUy: t < z',t,z
@@ -897,12 +937,15 @@ C--   local variables
       yline = max(yline,1)
 
 
-
-
       IF(TAU.LT.TAUI)THEN
-         getuy = 0.
          return
       ELSE
+
+C--   Return 0 if outside the profile grid
+      if (tau.gt.taus2(ntauvals2)) return
+      if (x.gt.xs2(nxvals2)) return
+      if (y.gt.ys2(nyvals2)) return
+
 
 C--   Need vectors containing tau,x,y and u values at corners
          do 40 i=1,2
@@ -1143,7 +1186,7 @@ C--   XVAL corresponds to z-coordinate
       implicit none
 C--   local variables
       integer i,dunit,tlistun,tauc,xc,yc,iolist,iot,dtauc,dxc
-     $,diolist,diot,dataFileLength
+     $,diolist,diot,dataFileLength,lunit
       logical listexist,fileexist
       character*300 format,ctau
       character*300 tfileph,dtfileph,filename
@@ -1185,13 +1228,14 @@ C--   Determine how many data files there are
 c--   Open the last timestamp file and determine its size
          inquire(file=dtfileph,exist=fileexist)
             if(fileexist)then
-               Open(unit=20,file=dtfileph,status='old',err=103)
+            lunit=20
+               Open(unit=lunit,file=dtfileph,status='old',err=103)
                diot=0
                dxc=0
                
 
                do
-                  read(20,*,iostat=diot) dxph, dyph, dTph !Check if first line contains number
+                  read(lunit,*,iostat=diot) dxph, dyph, dTph !Check if first line contains number
                   if (diot.eq.0) exit
                end do
                
@@ -1199,10 +1243,10 @@ c--   Open the last timestamp file and determine its size
             
 
                do while(diot.eq.0)                
-                  read(20,*,iostat=diot) dxph, dyph, dTph
+                  read(lunit,*,iostat=diot) dxph, dyph, dTph
                   dxc=dxc+1
                end do
-               rewind(20)
+               rewind(lunit)
             else
                write(*,*)"The dummy temperature file doesn't exist"
                write(*,*)'I tried to open this dtfileph: ',dtfileph
@@ -1235,7 +1279,7 @@ c     -same number of them in the list. Fortran rounds down to integers
             end if
 
             
- 103     close(20,status='keep') !Close the data file
+ 103     close(lunit,status='keep') !Close the data file
 
 C--   Determine location of timestamp in filename
          dataFileLength=len(TRIM(dtfileph))
@@ -1336,14 +1380,16 @@ C--   Give warning if no max temperature.
       use flrapmax
       use neffMaxMin
       implicit none
-C     --   local variables
+
+C--   local variables
       integer i,dunit,vlistun,tauc,xc,yc,iolist,iov,dtauc
-     $,diolist,diov,dxc,dataFileLength
+     $,diolist,diov,dxc,dataFileLength,lunit
       logical listexist,fileexist
       character*300 format,ctau
       character*300 filename,vfileph,dvfileph
       double precision xph,yph,tph,uxph,uyph,dxph,dyph,duxph,duyph
       double precision temp,gettemp,neffph,pi,frap
+      logical numTest
 
       DATA PI/3.141592653589793d0/
 
@@ -1355,8 +1401,7 @@ c     -check that the list of data files exists and open it
          open(unit=vlistun,file=filename,status='old')
          write(*,*)'Try to read velocities: I have opened ',filename
 
-c     -Determine how many data files there are
-       
+c     -Determine how many data files there are     
 
          dtauc=0
          do
@@ -1376,73 +1421,75 @@ c     -Determine how many data files there are
          write(*,*)'I counted the items in Vlist: ',ntauvals2
          rewind(vlistun)
 
-c--   Open the last timestamp file and determine its size
-         
+c--   Open the last timestamp file and determine its size         
          inquire(file=dvfileph,exist=fileexist)
          if(fileexist)then
-            Open(unit=30,file=dvfileph,status='old',err=200)
+            lunit=30
+            Open(unit=lunit,file=dvfileph,status='old',err=200)
             diov=0
             dxc=0
 
             do
-               read(30,*,iostat=diov) dxph, dyph, duxph,duyph !Check if first line contains number
+               read(lunit,*,iostat=diov) dxph, dyph, duxph,duyph !Check if first line contains number
             if (diov.eq.0) exit
          end do
          
          dxc=dxc+1
             
             do while(diov.eq.0)                
-               read(30,*,iostat=diov) dxph, dyph, duxph,duyph
+               read(lunit,*,iostat=diov) dxph, dyph, duxph,duyph
                dxc=dxc+1
             end do
-            rewind(30)
+            rewind(lunit)
          else
             write(*,*)"The dummy velocity file doesn't exist"
          endif
- 200     close(dunit,status='keep') !Close the data file
+ 
 
 
 
 c     -Compute the number of x and y positions, assuming that there are the
 c     -same number of them in the list. Fortran rounds _down_ to integers.
-            nxvals2=int(sqrt(real(dxc)))+1
-            nyvals2=nxvals2
+         nxvals2=int(sqrt(real(dxc)))+1
+         nyvals2=nxvals2
 
-            allocate (taus2(ntauvals2), STAT=tauAllStat2)
-            allocate (xs2(nxvals2), STAT=xAllStat2)
-            allocate (ys2(nyvals2), STAT=yAllStat2)
-            allocate (uxs(ntauvals2,nxvals2,nyvals2), STAT=uxsAllStat)
-            allocate (uys(ntauvals2,nxvals2,nyvals2), STAT=uysAllStat)
-            
-            if (tauAllStat2.ne.0) then
-               STOP
-               write(*,*)'Error allocating time array'
-            else if (xAllStat2.ne.0) then
-               STOP
-               write(*,*)'Error allocating x array'
-            else if (yAllStat2.ne.0) then
-               STOP
-               write(*,*)'Error allocating y array'
-            else if (uxsAllStat.ne.0) then
-               STOP
-               write(*,*)'Error allocating uxs array'
-            else if (uysAllStat.ne.0) then
-               STOP
-               write(*,*)'Error allocating uyx array'
-            else
-               write(*,*)'I allocated tau, x, y, uxs, uys arrays'
-            end if
+         allocate (taus2(ntauvals2), STAT=tauAllStat2)
+         allocate (xs2(nxvals2), STAT=xAllStat2)
+         allocate (ys2(nyvals2), STAT=yAllStat2)
+         allocate (uxs(ntauvals2,nxvals2,nyvals2), STAT=uxsAllStat)
+         allocate (uys(ntauvals2,nxvals2,nyvals2), STAT=uysAllStat)
+         
+         if (tauAllStat2.ne.0) then
+            STOP
+            write(*,*)'Error allocating time array'
+         else if (xAllStat2.ne.0) then
+            STOP
+            write(*,*)'Error allocating x array'
+         else if (yAllStat2.ne.0) then
+            STOP
+            write(*,*)'Error allocating y array'
+         else if (uxsAllStat.ne.0) then
+            STOP
+            write(*,*)'Error allocating uxs array'
+         else if (uysAllStat.ne.0) then
+            STOP
+            write(*,*)'Error allocating uyx array'
+         else
+            write(*,*)'I allocated tau, x, y, uxs, uys arrays'
+         end if
 
- 
+ 200     close(lunit,status='keep') !Close the data file
 
          iolist=0               !Tracks READ errors and looks for the end of the file    
          tauc=0    
          umax=0
          neffmax=0
+
+                  
      
 C--   Determine location of timestamp value in file name
          dataFileLength=len(TRIM(dvfileph))
-C--         Step through each file in the list.  
+C--      Step through each file in the list.  
          do while (iolist.eq.0)         
             read(vlistun,83,iostat=iolist) vfileph
             if(iolist.ne.0) go to 202
@@ -1461,8 +1508,6 @@ C--   Fill arrays.
                xc=1             !Counters to keep track of x and y
                yc=1
                
-
-               
                do               !Check if the first line contains a header
                   read(dunit,*,iostat=iov) xph,yph,uxph,uyph
                   if(iov.eq.0) exit
@@ -1474,23 +1519,12 @@ C--   Fill arrays.
                Uxs(tauc,1,1)=uxph
                Uys(tauc,1,1)=uyph 
 
-              
                iov=0            !Tracks READ errors and looks for the end of the file
                do while (iov.eq.0) !Iterate over all the rows in the data file
+                  
                   read(dunit,*,iostat=iov) xph,yph,Uxph,Uyph !Place holders 
-
-C--               Use user-defined maximum fluid velocity if given
-                  if ((umaxmax.gt.0.d0).and.(umax.gt.umaxmax)) umax=umaxmax  
-                  unorm=sqrt(uxph**2+uyph**2)
-
-                  if(unorm.gt.umaxmax) then  !Rescale
-                    uxph=uxph/unorm*umaxmax
-                    uyph=uyph/unorm*umaxmax
-                    unorm=sqrt(uxph**2+uyph**2)
-                  end if
-                  if(unorm.gt.umax)umax=unorm
-
-                  if ((xph.eq.xs2(xc)).and.(yph.gt.ys2(yc))) then
+C--               
+                  if ((xph.eq.xs2(xc)).and.(yph.gt.ys2(yc))) then 
                      yc=yc+1
                      ys2(yc)=yph
                      Uxs(tauc,xc,yc)=uxph
@@ -1515,23 +1549,42 @@ C--               Use user-defined maximum fluid velocity if given
                      Uxs(tauc,xc,yc)=uxph
                      Uys(tauc,xc,yc)=uyph
                   end if
-                  
-c-- Check for maximum fluid velocity and effective density
-                  TEMP=GETTEMP(xph,yph,0.d0,tph)
-                  frap = atanh(unorm)
 
-                  neffph=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
+c-- Check for maximum fluid velocity and effective density
+                  unorm=sqrt(uxph**2+uyph**2)
+                  TEMP=GETTEMP(xph,yph,0.d0,tph)
+
+                  if(TEMP.gt.TC) then
+                     
+                     if(unorm.gt.umax) umax=unorm  !Track max u above Tc
+                     if((unorm.gt.umaxmax).and.(umaxmax.gt.0.)) then  !Rescale if user-defined max u lower than highest u above Tc
+                        uxph=uxph/unorm*umaxmax
+                        uyph=uyph/unorm*umaxmax
+                        unorm=sqrt(uxph**2+uyph**2)
+                        umax=umaxmax
+                     end if
+                  
+                     
+
+                     frap = atanh(unorm)
+
+                     neffph=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &        *TEMP**3/PI**2
-c-             Max neff when parton moving against direction of fluid     
-                  neffph=neffph*(cosh(frap) + sinh(frap))
-                  if(neffph.gt.neffmax)neffmax=neffph
+c-                Max neff when parton moving against direction of fluid     
+                     neffph=neffph*(cosh(frap) + sinh(frap))
+                     if(neffph.gt.neffmax)neffmax=neffph
+
+                  else !Set velocities to zero if T < Tc
+                     Uxs(tauc,xc,yc)=0.d0
+                     Uys(tauc,xc,yc)=0.d0
+                  end if
 
                   ntauvals2=tauc
                   nxvals2=xc
                   nyvals2=yc
-C--   End of reading in velocities from vfileph               
+                  
+C--   End of reading in velocities from vfileph  
                end do
-
 
 C--            Calculate maximum fluid rapidity
                if (withflow) rapmax=atanh(umax)
@@ -1541,21 +1594,17 @@ C--            Calculate maximum fluid rapidity
                NATMDMIN=(2.*6.*NF*D3*2./3. + 16.*ZETA3*3./2.)
      &         *TC**3/PI**2
                natmdmin=natmdmin*(cosh(rapmax)+sinh(rapmax))
+               
 
             else
                write(*,*)'This velocity file  does not exist: ',vfileph               
             endif
  201        close(dunit,status='keep') !Close the data file
 
-            
          end do
-        
-
          
 C--   End of reading all time snapshots
  202     close(vlistun,status='keep') !Close the lsit of files
-
-         
          
       else
          write(*,*) 'There is no list of V snapshots'
@@ -1724,6 +1773,8 @@ C--	  Place one entry for each binary collision
 
 		else
 			write(*,*)"WARNING! I could not open NcollHisto, use a model"
+         NCOLLHISTO = '/ncollhisto/'
+
 			call CALCTA
 		endif
 
